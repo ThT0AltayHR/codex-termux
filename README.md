@@ -46,8 +46,9 @@ cd codex-termux
 `start.sh` makes its launcher executable, downloads the verified Android ARM64
 runtime on first launch, caches it locally, and falls back to a local Rust
 source build only when the published runtime cannot be downloaded. Node.js,
-Rust, and the Android NDK are not required for the normal prebuilt path. After
-the launcher opens, complete the normal `codex login` flow.
+Rust, and the Android NDK are not required for the normal prebuilt path. On the
+first launch it opens the normal `codex login` flow, then automatically starts
+the Codex interface after authentication. Later launches go directly to Codex.
 
 For the published package instead:
 

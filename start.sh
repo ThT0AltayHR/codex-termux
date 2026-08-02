@@ -73,9 +73,8 @@ download_runtime() {
   }
 }
 
-run_binary() {
+prepare_binary() {
   local binary="$1"
-  shift
   [ -x "$binary" ] || return 1
   export CODEX_SELF_EXE="$binary"
   if [ -n "${LD_LIBRARY_PATH:-}" ]; then
@@ -83,7 +82,26 @@ run_binary() {
   else
     export LD_LIBRARY_PATH="$(dirname "$binary")"
   fi
+}
+
+run_binary() {
+  local binary="$1"
+  shift
+  prepare_binary "$binary"
   exec "$binary" "$@"
+}
+
+start_binary() {
+  local binary="$1"
+  prepare_binary "$binary"
+
+  if ! "$binary" login status >/dev/null 2>&1; then
+    printf 'Codex hesabı için giriş gerekiyor. Login ekranı açılıyor...\n' >&2
+    "$binary" login
+  fi
+
+  printf 'Codex başlatılıyor...\n' >&2
+  exec "$binary"
 }
 
 if [ "${CODEX_START_DRY_RUN:-0}" = "1" ]; then
@@ -107,28 +125,33 @@ if [ "${CODEX_START_DRY_RUN:-0}" = "1" ]; then
 fi
 
 if [ -x "$PACKAGE_BIN" ]; then
-  run_binary "$PACKAGE_BIN" login
+  start_binary "$PACKAGE_BIN"
 fi
 
 if download_runtime; then
-  run_binary "$RUNTIME_BIN" login
+  start_binary "$RUNTIME_BIN"
 fi
 
 if [ -x "$ANDROID_BIN" ]; then
-  run_binary "$ANDROID_BIN" login
+  start_binary "$ANDROID_BIN"
 fi
 
 if [ -x "$HOST_BIN" ]; then
-  run_binary "$HOST_BIN" login
+  start_binary "$HOST_BIN"
 fi
 
 if command -v codex >/dev/null 2>&1; then
-  exec codex login
+  if ! codex login status >/dev/null 2>&1; then
+    printf 'Codex hesabı için giriş gerekiyor. Login ekranı açılıyor...\n' >&2
+    codex login
+  fi
+  printf 'Codex başlatılıyor...\n' >&2
+  exec codex
 fi
 
 if command -v cargo >/dev/null 2>&1 && [ -f "$ROOT_DIR/codex-rs/Cargo.toml" ]; then
-  printf 'No packaged Codex binary was found; compiling and launching the source CLI.\n' >&2
-  exec cargo run --manifest-path "$ROOT_DIR/codex-rs/Cargo.toml" --release -p codex-cli -- login
+  printf 'No packaged Codex binary was found; compiling the source CLI.\n' >&2
+  exec cargo run --manifest-path "$ROOT_DIR/codex-rs/Cargo.toml" --release -p codex-cli
 fi
 
 warn_missing "Rust/Cargo (required because the verified Android runtime could not be downloaded)"
