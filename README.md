@@ -43,10 +43,11 @@ cd codex-termux
 ./start.sh
 ```
 
-`start.sh` makes its launcher executable, checks for Node.js and Rust, prefers
-the bundled Android binary, and falls back to the local Rust source build when
-the platform package is unavailable. After the launcher opens, complete the
-normal `codex login` flow.
+`start.sh` makes its launcher executable, downloads the verified Android ARM64
+runtime on first launch, caches it locally, and falls back to a local Rust
+source build only when the published runtime cannot be downloaded. Node.js,
+Rust, and the Android NDK are not required for the normal prebuilt path. After
+the launcher opens, complete the normal `codex login` flow.
 
 For the published package instead:
 
@@ -61,7 +62,7 @@ Requirements:
 
 - Android 10+ / API 29+ (the release binary is built with the API 29 NDK target)
 - ARM64 device
-- Node.js >= 18
+- `curl` or `wget`, `tar`, and `sha512sum` for the automatic verified runtime download
 
 ## Scope
 

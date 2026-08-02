@@ -97,4 +97,5 @@ __pycache__/
 *.pyc
 artifacts/
 .artifacts/
+.codex-termux-runtime/
 test-reports/

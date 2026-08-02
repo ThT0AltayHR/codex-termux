@@ -9,6 +9,12 @@ ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_BIN="$ROOT_DIR/npm-package/bin/codex.bin"
 ANDROID_BIN="$ROOT_DIR/codex-rs/target/aarch64-linux-android/release/codex"
 HOST_BIN="$ROOT_DIR/codex-rs/target/release/codex"
+RUNTIME_VERSION="0.146.0"
+RUNTIME_ROOT="$ROOT_DIR/.codex-termux-runtime/$RUNTIME_VERSION"
+RUNTIME_BIN="$RUNTIME_ROOT/package/bin/codex.bin"
+RUNTIME_LIB="$RUNTIME_ROOT/package/bin/libc++_shared.so"
+RUNTIME_URL="https://registry.npmjs.org/@mmmbuto/codex-cli-termux/-/codex-cli-termux-${RUNTIME_VERSION}.tgz"
+RUNTIME_SHA512_HEX="6db217db7b73fd59c168bef275d27195313af55bbc84a5ba096000679650e473b25926a258bbd959f73cb651e39ffb0893de9d5e7c4677d9023e7964c465cd8a"
 
 chmod +x "$ROOT_DIR/start.sh" 2>/dev/null || true
 for launcher in "$ROOT_DIR"/npm-package/bin/codex "$ROOT_DIR"/npm-package/bin/codex-exec; do
@@ -19,9 +25,53 @@ warn_missing() {
   printf 'Warning: %s is not installed or not available in PATH.\n' "$1" >&2
 }
 
-command -v node >/dev/null 2>&1 || warn_missing "Node.js (required by the npm launcher)"
-command -v rustc >/dev/null 2>&1 || warn_missing "Rust (required only for the source fallback)"
-command -v cargo >/dev/null 2>&1 || warn_missing "Cargo (required only for the source fallback)"
+download_runtime() {
+  [ -x "$RUNTIME_BIN" ] && [ -f "$RUNTIME_LIB" ] && return 0
+
+  local downloader archive digest
+  if command -v curl >/dev/null 2>&1; then
+    downloader="curl"
+  elif command -v wget >/dev/null 2>&1; then
+    downloader="wget"
+  else
+    warn_missing "curl or wget (required for the verified Android binary)"
+    return 1
+  fi
+  command -v tar >/dev/null 2>&1 || {
+    warn_missing "tar (required for the verified Android binary)"
+    return 1
+  }
+  command -v sha512sum >/dev/null 2>&1 || {
+    warn_missing "sha512sum (required to verify the Android binary)"
+    return 1
+  }
+
+  archive="$RUNTIME_ROOT/codex-termux-${RUNTIME_VERSION}.tgz"
+  mkdir -p "$RUNTIME_ROOT"
+  printf 'Downloading verified Codex Termux Android ARM64 runtime %s...\n' "$RUNTIME_VERSION" >&2
+  if [ "$downloader" = "curl" ]; then
+    curl --fail --location --silent --show-error --retry 3 "$RUNTIME_URL" -o "$archive"
+  else
+    wget --quiet --tries=3 "$RUNTIME_URL" -O "$archive"
+  fi
+
+  digest="$(sha512sum "$archive" | awk '{print $1}')"
+  [ "$digest" = "$RUNTIME_SHA512_HEX" ] || {
+    rm -f "$archive"
+    printf 'Error: downloaded runtime failed SHA-512 verification.\n' >&2
+    return 1
+  }
+
+  rm -rf "$RUNTIME_ROOT/package"
+  tar -xzf "$archive" -C "$RUNTIME_ROOT"
+  rm -f "$archive"
+  chmod 0755 "$RUNTIME_BIN"
+  chmod 0644 "$RUNTIME_LIB"
+  [ -x "$RUNTIME_BIN" ] && [ -f "$RUNTIME_LIB" ] || {
+    printf 'Error: verified runtime archive is missing the Android binary or libc++.\n' >&2
+    return 1
+  }
+}
 
 run_binary() {
   local binary="$1"
@@ -39,6 +89,8 @@ run_binary() {
 if [ "${CODEX_START_DRY_RUN:-0}" = "1" ]; then
   if [ -x "$PACKAGE_BIN" ]; then
     printf 'launcher=packaged\n'
+  elif [ -x "$RUNTIME_BIN" ] && [ -f "$RUNTIME_LIB" ]; then
+    printf 'launcher=verified-download\n'
   elif [ -x "$ANDROID_BIN" ]; then
     printf 'launcher=android-source-build\n'
   elif [ -x "$HOST_BIN" ]; then
@@ -58,6 +110,10 @@ if [ -x "$PACKAGE_BIN" ]; then
   run_binary "$PACKAGE_BIN" login
 fi
 
+if download_runtime; then
+  run_binary "$RUNTIME_BIN" login
+fi
+
 if [ -x "$ANDROID_BIN" ]; then
   run_binary "$ANDROID_BIN" login
 fi
@@ -75,6 +131,7 @@ if command -v cargo >/dev/null 2>&1 && [ -f "$ROOT_DIR/codex-rs/Cargo.toml" ]; t
   exec cargo run --manifest-path "$ROOT_DIR/codex-rs/Cargo.toml" --release -p codex-cli -- login
 fi
 
+warn_missing "Rust/Cargo (required because the verified Android runtime could not be downloaded)"
 cat >&2 <<'EOF'
 Unable to start Codex.
 Install Node.js and the published Termux package, or install Rust/Cargo to use
