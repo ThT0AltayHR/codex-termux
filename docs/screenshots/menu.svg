@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Termux menu placeholder</title>
+  <desc id="desc">A terminal-style placeholder for a real device screenshot.</desc>
+  <rect width="900" height="560" rx="18" fill="#111827"/>
+  <rect x="24" y="24" width="852" height="512" rx="12" fill="#0b1220" stroke="#334155"/>
+  <circle cx="52" cy="52" r="7" fill="#ef4444"/>
+  <circle cx="76" cy="52" r="7" fill="#f59e0b"/>
+  <circle cx="100" cy="52" r="7" fill="#10b981"/>
+  <text x="48" y="112" fill="#94a3b8" font-family="monospace" font-size="20">$ codex</text>
+  <text x="48" y="162" fill="#f8fafc" font-family="monospace" font-size="24">Codex Termux</text>
+  <text x="48" y="204" fill="#10b981" font-family="monospace" font-size="18">What would you like to build?</text>
+  <text x="48" y="264" fill="#cbd5e1" font-family="monospace" font-size="18">› Start a new task</text>
+  <text x="48" y="304" fill="#cbd5e1" font-family="monospace" font-size="18">  Review a repository</text>
+  <text x="48" y="344" fill="#cbd5e1" font-family="monospace" font-size="18">  Open recent session</text>
+  <text x="48" y="430" fill="#64748b" font-family="monospace" font-size="16">Replace this SVG with a real Android capture.</text>
+</svg>

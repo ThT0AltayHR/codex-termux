@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Termux login placeholder</title>
+  <desc id="desc">A terminal-style placeholder for a real device screenshot.</desc>
+  <rect width="900" height="560" rx="18" fill="#111827"/>
+  <rect x="24" y="24" width="852" height="512" rx="12" fill="#0b1220" stroke="#334155"/>
+  <circle cx="52" cy="52" r="7" fill="#ef4444"/>
+  <circle cx="76" cy="52" r="7" fill="#f59e0b"/>
+  <circle cx="100" cy="52" r="7" fill="#10b981"/>
+  <text x="48" y="112" fill="#94a3b8" font-family="monospace" font-size="20">$ codex login</text>
+  <text x="48" y="184" fill="#f8fafc" font-family="monospace" font-size="24">Sign in to Codex</text>
+  <text x="48" y="238" fill="#cbd5e1" font-family="monospace" font-size="18">Opening the secure browser login...</text>
+  <text x="48" y="296" fill="#10a37f" font-family="monospace" font-size="18">termux-open-url</text>
+  <text x="48" y="368" fill="#cbd5e1" font-family="monospace" font-size="18">Return here when authentication is complete.</text>
+  <text x="48" y="430" fill="#64748b" font-family="monospace" font-size="16">Replace this SVG with a real Android capture.</text>
+</svg>

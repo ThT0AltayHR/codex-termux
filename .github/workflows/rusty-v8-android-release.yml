@@ -1,0 +1,201 @@
+name: rusty-v8-android-release
+
+# Builds the aarch64-linux-android rusty_v8 prebuild from source and uploads an
+# immutable CI artifact for coordinator audit. Publishing remains a separate,
+# local operation after the artifact and its checksums have been verified.
+#
+# Why this exists: denoland/rusty_v8 does not publish android prebuilds, and
+# upstream openai/codex rusty-v8-release matrix is desktop-only
+# (darwin / linux-gnu / linux-musl / windows-msvc). The Termux Android fork
+# needs an aarch64-linux-android prebuild for code-mode (exec/wait) to run
+# for real on Termux (see codex-termux#11 carry-forward, Patch #22).
+#
+# This workflow does NOT touch the codex workspace v8 version. It just
+# produces the artifact so that future fork merges that bump
+# v8 = "=149.x.y" can swap a Cargo.lock + manifest edit instead of waiting
+# for an upstream android prebuild.
+
+"on":
+  workflow_dispatch:
+    inputs:
+      v8_version:
+        description: "denoland/rusty_v8 tag to build (e.g. 149.2.0)"
+        type: string
+        default: "149.2.0"
+      target:
+        description: "Rust target triple (only aarch64-linux-android supported)"
+        type: choice
+        options:
+          - aarch64-linux-android
+        default: aarch64-linux-android
+
+env:
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+concurrency:
+  group: ${{ github.workflow }}::${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: Build rusty_v8 ${{ inputs.v8_version }} for ${{ inputs.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      ANDROID_NDK_VERSION: "28.2.13676358"
+      RUST_VERSION: "1.95.0"
+    steps:
+      - name: Free up disk before the V8 build
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$RUNNER_TEMP" / || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean || true
+          df -h "$RUNNER_TEMP" / || true
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install host dependencies (gn / sysroot tools)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev protobuf-compiler \
+            python3-pip xz-utils
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          toolchain: "${{ env.RUST_VERSION }}"
+          targets: ${{ inputs.target }}
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?ANDROID_HOME must be set on the GitHub runner}"
+          export PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/cmdline-tools/bin:${PATH}"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+          ndk_home="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK_HOME=${ndk_home}" >> "${GITHUB_ENV}"
+          echo "ANDROID_NDK_ROOT=${ndk_home}" >> "${GITHUB_ENV}"
+
+      - name: Prepare rusty_v8 source checkout at v${{ inputs.v8_version }}
+        id: prepare
+        env:
+          V8_VERSION: ${{ inputs.v8_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${V8_VERSION}"
+          checkout_root="${GITHUB_WORKSPACE}/.artifacts/rusty_v8-src"
+          checkout_dir="${checkout_root}/${tag}"
+          mkdir -p "${checkout_root}"
+          if [ ! -d "${checkout_dir}" ]; then
+            git clone --depth 1 --branch "${tag}" \
+              https://github.com/denoland/rusty_v8.git "${checkout_dir}"
+          fi
+          # Submodules pinned by prepare_rusty_v8_android_source.py.
+          (cd "${checkout_dir}" && \
+            git submodule update --init --depth 1 --recursive \
+              build v8 tools/clang buildtools)
+          # Symlink android_toolchain/ndk to the NDK we just installed, mirroring
+          # what prepare_rusty_v8_android_source.py does on a maintainer host.
+          mkdir -p "${checkout_dir}/third_party/android_toolchain"
+          ln -sfn "${ANDROID_NDK_HOME}" "${checkout_dir}/third_party/android_toolchain/ndk"
+          echo "checkout=${checkout_dir}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build rusty_v8 from source for ${{ inputs.target }}
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_HOME }}
+          CHECKOUT: ${{ steps.prepare.outputs.checkout }}
+          TARGET: ${{ inputs.target }}
+          V8_VERSION: ${{ inputs.v8_version }}
+          # V8 source build needs a recent gn and an amd64 sysroot image.
+          # We let the upstream build/linux/sysroot_scripts install-sysroot.py
+          # fetch the sysroot; gn is shipped inside the denoland checkout.
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
+          export LIBLZMA_NO_PKG_CONFIG=1
+          export OPENSSL_NO_PKG_CONFIG=1
+          export PKG_CONFIG_ALLOW_CROSS=1
+          # The denoland checkout ships a `gn` binary in `buildtools/` once the
+          # buildtools submodule is initialised. Export it so `cargo`/`v8` can
+          # find a recent enough `gn` to drive the V8 build.
+          if [ -x "${CHECKOUT}/buildtools/linux64/gn" ]; then
+            export GN="${CHECKOUT}/buildtools/linux64/gn"
+          fi
+          # amd64 sysroot (libc/glibc) is required by some V8 host tools even
+          # for a cross-build to android.
+          (cd "${CHECKOUT}" && \
+            python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64)
+          (cd "${CHECKOUT}" && \
+            V8_FROM_SOURCE=1 \
+            cargo build --release --target "${TARGET}")
+
+      - name: Locate build outputs
+        id: locate
+        env:
+          CHECKOUT: ${{ steps.prepare.outputs.checkout }}
+          TARGET: ${{ inputs.target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # denoland's rusty_v8 produces the static archive under
+          # target/<triple>/release/build/.../out/librusty_v8.a, and the binding
+          # next to it. Locate by name to be robust against layout changes.
+          archive="$(find "${CHECKOUT}/target/${TARGET}/release" -maxdepth 6 \
+            -type f -name 'librusty_v8.a' -print -quit || true)"
+          binding="$(find "${CHECKOUT}/target/${TARGET}/release" -maxdepth 6 \
+            -type f -name 'src_binding.rs' -print -quit || true)"
+          if [ -z "${archive}" ] || [ -z "${binding}" ]; then
+            echo "Could not locate librusty_v8.a or src_binding.rs under ${CHECKOUT}/target/${TARGET}/release" >&2
+            find "${CHECKOUT}/target/${TARGET}/release" -maxdepth 4 -type f 2>/dev/null | head -40 >&2 || true
+            exit 1
+          fi
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+          echo "binding=${binding}" >> "${GITHUB_OUTPUT}"
+
+      - name: Stage and compress outputs
+        env:
+          ARCHIVE: ${{ steps.locate.outputs.archive }}
+          BINDING: ${{ steps.locate.outputs.binding }}
+          TARGET: ${{ inputs.target }}
+          V8_VERSION: ${{ inputs.v8_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="dist/${TARGET}"
+          mkdir -p "${stage}"
+          cp "${ARCHIVE}" "${stage}/librusty_v8_release_${TARGET}.a"
+          cp "${BINDING}" "${stage}/src_binding_release_${TARGET}.rs"
+          gzip -9 -f "${stage}/librusty_v8_release_${TARGET}.a"
+          (cd "${stage}" && \
+            sha256sum "librusty_v8_release_${TARGET}.a.gz" \
+                      "src_binding_release_${TARGET}.rs" \
+            > "rusty_v8_release_${TARGET}.sha256")
+          cat "${stage}/rusty_v8_release_${TARGET}.sha256"
+
+      - name: Upload staged artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: rusty-v8-android-${{ inputs.v8_version }}-${{ inputs.target }}
+          path: dist/${{ inputs.target }}/*

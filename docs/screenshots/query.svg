@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Termux query placeholder</title>
+  <desc id="desc">A terminal-style placeholder for a real device screenshot.</desc>
+  <rect width="900" height="560" rx="18" fill="#111827"/>
+  <rect x="24" y="24" width="852" height="512" rx="12" fill="#0b1220" stroke="#334155"/>
+  <circle cx="52" cy="52" r="7" fill="#ef4444"/>
+  <circle cx="76" cy="52" r="7" fill="#f59e0b"/>
+  <circle cx="100" cy="52" r="7" fill="#10b981"/>
+  <text x="48" y="112" fill="#94a3b8" font-family="monospace" font-size="20">$ codex exec</text>
+  <text x="48" y="174" fill="#10a37f" font-family="monospace" font-size="18">You</text>
+  <text x="48" y="214" fill="#f8fafc" font-family="monospace" font-size="20">Inspect this Termux project and explain the build.</text>
+  <text x="48" y="286" fill="#10a37f" font-family="monospace" font-size="18">Codex</text>
+  <text x="48" y="326" fill="#cbd5e1" font-family="monospace" font-size="18">I’ll inspect the repository and summarize the</text>
+  <text x="48" y="358" fill="#cbd5e1" font-family="monospace" font-size="18">cross-compilation path.</text>
+  <text x="48" y="430" fill="#64748b" font-family="monospace" font-size="16">Replace this SVG with a real Android capture.</text>
+</svg>
