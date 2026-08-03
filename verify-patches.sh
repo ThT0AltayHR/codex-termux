@@ -310,9 +310,13 @@ if grep -q "github.repository == 'openai/codex'" .github/workflows/repo-checks.y
   && grep -q 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' .github/workflows/termux-npm-build-publish.yml \
   && grep -q 'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f' .github/workflows/termux-npm-build-publish.yml \
   && grep -q 'persist-credentials: false' .github/workflows/termux-npm-build-publish.yml \
-  && grep -q 'contents: read' .github/workflows/termux-npm-build-publish.yml \
+  && grep -q 'contents: write' .github/workflows/termux-npm-build-publish.yml \
   && grep -q 'git rev-parse HEAD.*GITHUB_SHA' .github/workflows/termux-npm-build-publish.yml \
-  && ! grep -q 'source_ref\|create_release\|gh release' .github/workflows/termux-npm-build-publish.yml \
+  && grep -q 'GH_TOKEN:.*github.token' .github/workflows/termux-npm-build-publish.yml \
+  && grep -q 'RELEASE_TAG: termux-latest' .github/workflows/termux-npm-build-publish.yml \
+  && grep -q 'gh release create' .github/workflows/termux-npm-build-publish.yml \
+  && grep -q 'gh release upload' .github/workflows/termux-npm-build-publish.yml \
+  && grep -q 'codex-termux-runtime.tgz.sha512' .github/workflows/termux-npm-build-publish.yml \
   && ! grep -Eq '^[[:space:]]*npm publish' .github/workflows/termux-npm-build-publish.yml \
   && grep -q 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' .github/workflows/rusty-v8-android-release.yml \
   && grep -q 'actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405' .github/workflows/rusty-v8-android-release.yml \

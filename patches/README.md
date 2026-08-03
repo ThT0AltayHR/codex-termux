@@ -227,10 +227,11 @@ required to publish a working Android Termux package.
   `termux-npm-build-publish.yml` is the fork's release pipeline:
   workflow_dispatch, builds the Android arm64 binaries with the V8 prebuilt
   flow (Patch #22), binds checkout HEAD to the workflow run `GITHUB_SHA`,
-  assembles the npm package, and uploads the immutable tarball. The workflow
-  uses read-only repository permissions and does not publish npm packages or
-  create GitHub releases; both mutations are intentionally local from the
-  maintainer host after the downloaded artifact passes audit.
+  assembles the npm package, and uploads the immutable tarball. It also
+  publishes the checksum-verified `codex-termux-runtime.tgz` and its SHA-512
+  file to the rolling public `termux-latest` GitHub Release. `start.sh`
+  consumes that release so Termux users do not need Rust or the Android NDK.
+  npm publishing remains intentionally outside CI.
   `.forgejo/workflows/termux-next-smoke.yml` is the Forge mirror used for
   develop-side smoke tests. Public candidates omit both `.forgejo/**` and the
   internal `test-report/**` device logs; `verify-patches.sh` enforces the full
