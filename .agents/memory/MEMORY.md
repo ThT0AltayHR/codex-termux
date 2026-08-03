@@ -1,0 +1,1 @@
+- [Provider compatibility](provider-compatibility.md) — this Codex version routes configured providers through the Responses API; avoid hardcoded Chat Completions-only providers.
