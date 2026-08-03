@@ -162,6 +162,9 @@ enum Subcommand {
     /// Diagnose local Codex installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
 
+    /// Show the active config file, provider, model, and safe environment-key status.
+    Config(ConfigCommand),
+
     /// Run commands within a Codex-provided sandbox.
     Sandbox(HostSandboxArgs),
 
@@ -278,6 +281,9 @@ struct DebugModelsCommand {
     #[arg(long = "bundled", default_value_t = false)]
     bundled: bool,
 }
+
+#[derive(Debug, Parser)]
+struct ConfigCommand {}
 
 #[derive(Debug, Parser)]
 struct ReviewCommand {
@@ -1435,6 +1441,14 @@ async fn cli_main(
             )
             .await?;
         }
+        Some(Subcommand::Config(_)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "config",
+            )?;
+            run_config_command(root_config_overrides).await?;
+        }
         Some(Subcommand::Cloud(mut cloud_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -2070,6 +2084,56 @@ async fn run_debug_models_command(
     Ok(())
 }
 
+async fn run_config_command(root_config_overrides: CliConfigOverrides) -> anyhow::Result<()> {
+    let cli_overrides = root_config_overrides
+        .parse_overrides()
+        .map_err(anyhow::Error::msg)?;
+    let config = ConfigBuilder::default()
+        .cli_overrides(cli_overrides)
+        .build()
+        .await?;
+    let config_path = config.codex_home.join(codex_config::CONFIG_TOML_FILE);
+
+    println!("config.toml: {}", config_path.display());
+    println!("model_provider: {}", config.model_provider_id);
+    println!(
+        "model: {}",
+        config.model.as_deref().unwrap_or("(automatic)")
+    );
+    println!("provider: {}", config.model_provider.name);
+    match config.model_provider.env_key.as_deref() {
+        Some(env_key) => println!(
+            "api_key: {env_key} ({})",
+            if std::env::var_os(env_key).is_some() {
+                "detected"
+            } else {
+                "not set"
+            }
+        ),
+        None => println!("api_key: ChatGPT login or provider-managed authentication"),
+    }
+
+    println!("configured_providers:");
+    let mut providers: Vec<_> = config.model_providers.iter().collect();
+    providers.sort_by(|left, right| left.0.cmp(right.0));
+    for (provider_id, provider) in providers {
+        let auth_status = provider
+            .env_key
+            .as_deref()
+            .map(|key| {
+                if std::env::var_os(key).is_some() {
+                    format!("{key}=detected")
+                } else {
+                    format!("{key}=not-set")
+                }
+            })
+            .unwrap_or_else(|| "managed-auth".to_string());
+        println!("  {provider_id}: {auth_status}");
+    }
+
+    Ok(())
+}
+
 async fn run_debug_clear_memories_command(
     root_config_overrides: &CliConfigOverrides,
 ) -> anyhow::Result<()> {
@@ -2171,7 +2235,8 @@ fn unsupported_subcommand_name_for_strict_config(
         | Some(Subcommand::Delete(_))
         | Some(Subcommand::Unarchive(_))
         | Some(Subcommand::Fork(_))
-        | Some(Subcommand::Doctor(_)) => None,
+        | Some(Subcommand::Doctor(_))
+        | Some(Subcommand::Config(_)) => None,
         Some(Subcommand::AppServer(app_server)) if app_server.subcommand.is_none() => None,
         Some(Subcommand::AppServer(app_server)) => {
             Some(app_server_subcommand_name(app_server.subcommand.as_ref()))

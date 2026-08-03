@@ -1693,6 +1693,44 @@ impl App {
                     }
                 }
             }
+            AppEvent::PersistModelProviderSelection { provider } => {
+                match crate::config_update::write_config_batch(
+                    app_server.request_handle(),
+                    vec![crate::config_update::build_model_provider_selection_edit(
+                        provider.as_str(),
+                    )],
+                )
+                .await
+                {
+                    Ok(_) => {
+                        if let Err(err) = self.refresh_in_memory_config_from_disk().await {
+                            self.chat_widget.add_error_message(format!(
+                                "Provider saved, but the active configuration could not be refreshed: {err}"
+                            ));
+                        } else {
+                            self.chat_widget.add_info_message(
+                                format!(
+                                    "API provider changed to {provider}. Starting a new session..."
+                                ),
+                                None,
+                            );
+                            self.start_fresh_session_with_summary_hint(
+                                tui,
+                                app_server,
+                                Some(ThreadStartSource::Startup),
+                                None,
+                                None,
+                            )
+                            .await;
+                        }
+                    }
+                    Err(err) => {
+                        let error = format_config_error(&err);
+                        self.chat_widget
+                            .add_error_message(format!("Failed to save API provider: {error}"));
+                    }
+                }
+            }
             AppEvent::PluginUninstallLoaded {
                 cwd,
                 plugin_id: _plugin_id,

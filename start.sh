@@ -93,7 +93,15 @@ run_binary() {
 
 start_binary() {
   local binary="$1"
+  shift
   prepare_binary "$binary"
+
+  # Explicit CLI commands must be passed through unchanged. This keeps
+  # `./start.sh help`, `doctor`, `config`, `login`, and `exec` useful even
+  # before an interactive ChatGPT login has been completed.
+  if [ "$#" -gt 0 ]; then
+    exec "$binary" "$@"
+  fi
 
   if ! "$binary" login status >/dev/null 2>&1; then
     printf 'Codex hesabı için giriş gerekiyor. Login ekranı açılıyor...\n' >&2
@@ -125,33 +133,38 @@ if [ "${CODEX_START_DRY_RUN:-0}" = "1" ]; then
 fi
 
 if [ -x "$PACKAGE_BIN" ]; then
-  start_binary "$PACKAGE_BIN"
+  start_binary "$PACKAGE_BIN" "$@"
 fi
 
 if download_runtime; then
-  start_binary "$RUNTIME_BIN"
+  start_binary "$RUNTIME_BIN" "$@"
 fi
 
 if [ -x "$ANDROID_BIN" ]; then
-  start_binary "$ANDROID_BIN"
+  start_binary "$ANDROID_BIN" "$@"
 fi
 
 if [ -x "$HOST_BIN" ]; then
-  start_binary "$HOST_BIN"
+  start_binary "$HOST_BIN" "$@"
 fi
 
 if command -v codex >/dev/null 2>&1; then
+  if [ "$#" -gt 0 ]; then
+    exec codex "$@"
+  fi
+
   if ! codex login status >/dev/null 2>&1; then
     printf 'Codex hesabı için giriş gerekiyor. Login ekranı açılıyor...\n' >&2
     codex login
   fi
+
   printf 'Codex başlatılıyor...\n' >&2
   exec codex
 fi
 
 if command -v cargo >/dev/null 2>&1 && [ -f "$ROOT_DIR/codex-rs/Cargo.toml" ]; then
   printf 'No packaged Codex binary was found; compiling the source CLI.\n' >&2
-  exec cargo run --manifest-path "$ROOT_DIR/codex-rs/Cargo.toml" --release -p codex-cli
+  exec cargo run --manifest-path "$ROOT_DIR/codex-rs/Cargo.toml" --release -p codex-cli -- "$@"
 fi
 
 warn_missing "Rust/Cargo (required because the verified Android runtime could not be downloaded)"

@@ -775,6 +775,11 @@ pub(crate) enum AppEvent {
         effort: Option<ReasoningEffort>,
     },
 
+    /// Persist the selected model provider and reload the next session with it.
+    PersistModelProviderSelection {
+        provider: String,
+    },
+
     /// Persist the selected personality to the appropriate config.
     PersistPersonalitySelection {
         personality: Personality,

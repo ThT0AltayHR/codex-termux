@@ -144,6 +144,10 @@ pub(crate) fn build_oss_provider_edit(provider: &str) -> ConfigEdit {
     replace_config_value("oss_provider", serde_json::json!(provider))
 }
 
+pub(crate) fn build_model_provider_selection_edit(provider: &str) -> ConfigEdit {
+    replace_config_value("model_provider", serde_json::json!(provider))
+}
+
 pub(crate) async fn write_config_batch(
     request_handle: AppServerRequestHandle,
     edits: Vec<ConfigEdit>,

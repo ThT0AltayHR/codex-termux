@@ -8,6 +8,76 @@ use super::*;
 const ULTRA_REASONING_CONCURRENCY_WARNING_THRESHOLD: usize = 8;
 
 impl ChatWidget {
+    pub(crate) fn open_api_provider_popup(&mut self) {
+        let mut providers: Vec<(String, String, Option<String>, bool)> = self
+            .config
+            .model_providers
+            .iter()
+            .map(|(id, provider)| {
+                let env_key = provider.env_key.clone();
+                let configured = env_key
+                    .as_deref()
+                    .is_some_and(|key| std::env::var_os(key).is_some());
+                (id.clone(), provider.name.clone(), env_key, configured)
+            })
+            .collect();
+        providers.sort_by(|left, right| left.0.cmp(&right.0));
+
+        let current_provider = self.config.model_provider_id.clone();
+        let items: Vec<SelectionItem> = providers
+            .into_iter()
+            .map(|(id, name, env_key, configured)| {
+                let provider_for_action = id.clone();
+                let env_label = env_key
+                    .map(|key| {
+                        if configured {
+                            format!("{key}: detected")
+                        } else {
+                            format!("{key}: not set")
+                        }
+                    })
+                    .unwrap_or_else(|| "ChatGPT login".to_string());
+                SelectionItem {
+                    name: format!("{name} ({id})"),
+                    description: Some(format!(
+                        "{env_label}; /model discovers models from this provider"
+                    )),
+                    is_current: id == current_provider,
+                    actions: vec![Box::new(move |tx| {
+                        tx.send(AppEvent::PersistModelProviderSelection {
+                            provider: provider_for_action.clone(),
+                        });
+                    })],
+                    dismiss_on_select: true,
+                    ..Default::default()
+                }
+            })
+            .collect();
+
+        if items.is_empty() {
+            self.add_info_message(
+                "No model providers are configured. Add [model_providers.<id>] to ~/.codex/config.toml first."
+                    .to_string(),
+                None,
+            );
+            return;
+        }
+
+        let mut header = ColumnRenderable::new();
+        header.push(Line::from("Select API provider".bold()));
+        header.push(Line::from(
+            "Arrow keys select a provider. API keys stay in environment variables.".dim(),
+        ));
+        self.bottom_pane.show_selection_view(SelectionViewParams {
+            title: Some("API Provider".to_string()),
+            subtitle: Some("Configured providers and their environment-key status".to_string()),
+            footer_hint: Some(standard_popup_hint_line()),
+            items,
+            header: Box::new(header),
+            ..Default::default()
+        });
+    }
+
     /// Open a popup to choose a quick auto model. Selecting "All models"
     /// opens the full picker with every available preset.
     pub(crate) fn open_model_popup(&mut self) {
