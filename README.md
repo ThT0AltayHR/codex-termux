@@ -98,7 +98,7 @@ hale getirmektir.
 
 | Sorun | Codex Termux yaklaşımı |
 | --- | --- |
-| Android'de doğru native binary'yi bulma | Paketlenmiş binary → doğrulanmış runtime → yerel binary → kaynak fallback sırası |
+| Android'de doğru native binary'yi bulma | Güncel yerel kaynak derlemesi → paketlenmiş binary → doğrulanmış runtime sırası |
 | İlk çalıştırmada karmaşık login | `start.sh` login durumunu kontrol eder ve gerektiğinde `codex login` akışını açar |
 | CLI komutlarının login'e takılması | `help`, `doctor`, `config`, `login`, `exec` gibi açık argümanlar doğrudan binary'ye iletilir |
 | Model sağlayıcısını TUI'den değiştirememe | `/api` ile yapılandırılmış sağlayıcılar arasında ok tuşlarıyla seçim |
@@ -163,14 +163,27 @@ Codex doğru açıldıktan sonra eski boş dış klasörü kaldırabilirsin:
 rm -rf ~/codex-termux-backup
 ```
 
-İlk çalıştırmada `start.sh`:
+İlk çalıştırmada `start.sh`, fork'a özgü `/api`, `/model`, `doctor` ve
+`config` değişikliklerini kullanabilmek için Cargo ve kaynak ağaçsı mevcutsa
+güncel kaynak sürümünü tercih eder. Kaynak derleme araçları yoksa doğrulanmış
+Android runtime'ına geri döner.
+
+`start.sh` akışı:
 
 1. kendi çalıştırma iznini düzeltir,
-2. yerel paketlenmiş Android binary'sini arar,
-3. yoksa doğrulanmış Termux runtime arşivini indirir,
-4. SHA-512 değerini kontrol eder,
-5. daha önce login yapılmadıysa `codex login` akışını açar,
-6. login tamamlanınca Codex TUI'yi başlatır.
+2. güncel yerel Android/host binary'sini veya Cargo kaynak derlemesini arar,
+3. kaynak araçları yoksa paketlenmiş binary'yi arar,
+4. o da yoksa doğrulanmış Termux runtime arşivini indirir,
+5. SHA-512 değerini kontrol eder,
+6. daha önce login yapılmadıysa `codex login` akışını açar,
+7. login tamamlanınca Codex TUI'yi başlatır.
+
+Kaynak sürümünü açıkça zorlamak için:
+
+```bash
+cd ~/codex-termux
+CODEX_USE_SOURCE=1 bash ./start.sh
+```
 
 Sonraki açılış:
 
