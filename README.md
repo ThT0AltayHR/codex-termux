@@ -163,22 +163,24 @@ Codex doğru açıldıktan sonra eski boş dış klasörü kaldırabilirsin:
 rm -rf ~/codex-termux-backup
 ```
 
-İlk çalıştırmada `start.sh`, fork'a özgü `/api`, `/model`, `doctor` ve
-`config` değişikliklerini kullanabilmek için Cargo ve kaynak ağaçsı mevcutsa
-güncel kaynak sürümünü tercih eder. Kaynak derleme araçları yoksa doğrulanmış
-Android runtime'ına geri döner.
+İlk çalıştırmada `start.sh`, GitHub Actions tarafından hazırlanmış güncel
+Android ARM64 runtime paketini indirir, SHA-512 ile doğrular ve çalıştırır.
+Termux üzerinde Rust, Cargo, Android NDK veya kaynak derlemesi gerekmez.
+Bu paket fork'a özgü `/api`, `/model`, `doctor` ve `config` değişikliklerini
+içerir.
 
 `start.sh` akışı:
 
 1. kendi çalıştırma iznini düzeltir,
-2. güncel yerel Android/host binary'sini veya Cargo kaynak derlemesini arar,
-3. kaynak araçları yoksa paketlenmiş binary'yi arar,
-4. o da yoksa doğrulanmış Termux runtime arşivini indirir,
-5. SHA-512 değerini kontrol eder,
-6. daha önce login yapılmadıysa `codex login` akışını açar,
-7. login tamamlanınca Codex TUI'yi başlatır.
+2. varsa güncel GitHub Actions release runtime'ını kullanır,
+3. yoksa depodaki paketlenmiş binary'yi arar,
+4. SHA-512 değerini kontrol eder,
+5. daha önce login yapılmadıysa `codex login` akışını açar,
+6. login tamamlanınca Codex TUI'yi başlatır.
 
-Kaynak sürümünü açıkça zorlamak için:
+İnternet bağlantısı olmayan bir cihazda, paket daha önce indirilmişse cache'den
+çalışır. İlk kez indirme için kısa süreli internet gerekir. Geliştirici olarak
+kaynak sürümünü açıkça zorlamak istersen:
 
 ```bash
 cd ~/codex-termux

@@ -2,20 +2,21 @@
 set -euo pipefail
 
 # Codex Termux zero-configuration launcher.
-# It prefers a local source build so fork-only TUI features are not hidden by
-# an older published runtime, then falls back to the verified Android package.
+# It prefers the verified GitHub Actions Android runtime so Termux users do not
+# need a Rust/NDK toolchain. Set CODEX_USE_SOURCE=1 only for local development.
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_BIN="$ROOT_DIR/npm-package/bin/codex.bin"
 ANDROID_BIN="$ROOT_DIR/codex-rs/target/aarch64-linux-android/release/codex"
 HOST_BIN="$ROOT_DIR/codex-rs/target/release/codex"
-RUNTIME_VERSION="0.146.0"
+RUNTIME_VERSION="termux-latest"
 RUNTIME_ROOT="$ROOT_DIR/.codex-termux-runtime/$RUNTIME_VERSION"
 RUNTIME_BIN="$RUNTIME_ROOT/package/bin/codex.bin"
 RUNTIME_LIB="$RUNTIME_ROOT/package/bin/libc++_shared.so"
-RUNTIME_URL="https://registry.npmjs.org/@mmmbuto/codex-cli-termux/-/codex-cli-termux-${RUNTIME_VERSION}.tgz"
-RUNTIME_SHA512_HEX="6db217db7b73fd59c168bef275d27195313af55bbc84a5ba096000679650e473b25926a258bbd959f73cb651e39ffb0893de9d5e7c4677d9023e7964c465cd8a"
-CODEX_PREFER_SOURCE="${CODEX_PREFER_SOURCE:-1}"
+RUNTIME_CACHED_SHA512="$RUNTIME_ROOT/runtime.sha512"
+RUNTIME_URL="https://github.com/ThT0AltayHR/codex-termux/releases/download/${RUNTIME_VERSION}/codex-termux-runtime.tgz"
+RUNTIME_SHA512_URL="https://github.com/ThT0AltayHR/codex-termux/releases/download/${RUNTIME_VERSION}/codex-termux-runtime.tgz.sha512"
+CODEX_PREFER_SOURCE="${CODEX_PREFER_SOURCE:-0}"
 
 chmod +x "$ROOT_DIR/start.sh" 2>/dev/null || true
 for launcher in "$ROOT_DIR"/npm-package/bin/codex "$ROOT_DIR"/npm-package/bin/codex-exec; do
@@ -27,9 +28,7 @@ warn_missing() {
 }
 
 download_runtime() {
-  [ -x "$RUNTIME_BIN" ] && [ -f "$RUNTIME_LIB" ] && return 0
-
-  local downloader archive digest
+  local downloader archive checksum_file expected_digest digest remote_checksum
   if command -v curl >/dev/null 2>&1; then
     downloader="curl"
   elif command -v wget >/dev/null 2>&1; then
@@ -47,29 +46,62 @@ download_runtime() {
     return 1
   }
 
-  archive="$RUNTIME_ROOT/codex-termux-${RUNTIME_VERSION}.tgz"
-  mkdir -p "$RUNTIME_ROOT"
-  printf 'Downloading verified Codex Termux Android ARM64 runtime %s...\n' "$RUNTIME_VERSION" >&2
-  if [ "$downloader" = "curl" ]; then
-    curl --fail --location --silent --show-error --retry 3 "$RUNTIME_URL" -o "$archive"
-  else
-    wget --quiet --tries=3 "$RUNTIME_URL" -O "$archive"
+  if [ -x "$RUNTIME_BIN" ] && [ -f "$RUNTIME_LIB" ] && [ -f "$RUNTIME_CACHED_SHA512" ]; then
+    remote_checksum="$(mktemp)"
+    if [ "$downloader" = "curl" ]; then
+      if curl --fail --location --silent --show-error --connect-timeout 3 --max-time 8 "$RUNTIME_SHA512_URL" -o "$remote_checksum"; then
+        expected_digest="$(awk 'NF {print $1; exit}' "$remote_checksum")"
+        if [ "$expected_digest" = "$(cat "$RUNTIME_CACHED_SHA512")" ]; then
+          rm -f "$remote_checksum"
+          return 0
+        fi
+      else
+        rm -f "$remote_checksum"
+        return 0
+      fi
+    elif wget --timeout=3 --tries=1 --quiet "$RUNTIME_SHA512_URL" -O "$remote_checksum"; then
+      expected_digest="$(awk 'NF {print $1; exit}' "$remote_checksum")"
+      if [ "$expected_digest" = "$(cat "$RUNTIME_CACHED_SHA512")" ]; then
+        rm -f "$remote_checksum"
+        return 0
+      fi
+    else
+      rm -f "$remote_checksum"
+      return 0
+    fi
+    rm -f "$remote_checksum"
+    rm -rf "$RUNTIME_ROOT/package"
+    rm -f "$RUNTIME_CACHED_SHA512"
   fi
 
+  archive="$RUNTIME_ROOT/codex-termux-${RUNTIME_VERSION}.tgz"
+  checksum_file="$RUNTIME_ROOT/codex-termux-${RUNTIME_VERSION}.tgz.sha512"
+  mkdir -p "$RUNTIME_ROOT"
+  printf 'GitHub Actions tarafından hazırlanmış ARM64 runtime indiriliyor...\n' >&2
+  if [ "$downloader" = "curl" ]; then
+    curl --fail --location --silent --show-error --retry 3 "$RUNTIME_URL" -o "$archive"
+    curl --fail --location --silent --show-error --retry 3 "$RUNTIME_SHA512_URL" -o "$checksum_file"
+  else
+    wget --quiet --tries=3 "$RUNTIME_URL" -O "$archive"
+    wget --quiet --tries=3 "$RUNTIME_SHA512_URL" -O "$checksum_file"
+  fi
+
+  expected_digest="$(awk 'NF {print $1; exit}' "$checksum_file")"
   digest="$(sha512sum "$archive" | awk '{print $1}')"
-  [ "$digest" = "$RUNTIME_SHA512_HEX" ] || {
-    rm -f "$archive"
-    printf 'Error: downloaded runtime failed SHA-512 verification.\n' >&2
+  [ -n "$expected_digest" ] && [ "$digest" = "$expected_digest" ] || {
+    rm -f "$archive" "$checksum_file"
+    printf 'Error: GitHub runtime SHA-512 doğrulaması başarısız.\n' >&2
     return 1
   }
 
   rm -rf "$RUNTIME_ROOT/package"
   tar -xzf "$archive" -C "$RUNTIME_ROOT"
-  rm -f "$archive"
+  rm -f "$archive" "$checksum_file"
+  printf '%s\n' "$expected_digest" > "$RUNTIME_CACHED_SHA512"
   chmod 0755 "$RUNTIME_BIN"
   chmod 0644 "$RUNTIME_LIB"
   [ -x "$RUNTIME_BIN" ] && [ -f "$RUNTIME_LIB" ] || {
-    printf 'Error: verified runtime archive is missing the Android binary or libc++.\n' >&2
+    printf 'Error: doğrulanmış runtime Android binary veya libc++ içermiyor.\n' >&2
     return 1
   }
 }
@@ -168,12 +200,12 @@ if [ "$CODEX_PREFER_SOURCE" = "1" ]; then
   fi
 fi
 
-if [ -x "$PACKAGE_BIN" ]; then
-  start_binary "$PACKAGE_BIN" "$@"
-fi
-
 if download_runtime; then
   start_binary "$RUNTIME_BIN" "$@"
+fi
+
+if [ -x "$PACKAGE_BIN" ]; then
+  start_binary "$PACKAGE_BIN" "$@"
 fi
 
 if command -v codex >/dev/null 2>&1; then

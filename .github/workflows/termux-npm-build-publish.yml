@@ -1,8 +1,6 @@
-# NOTE (policy): npm publish is performed LOCALLY from the maintainer's
-# release host, never from GitHub Actions. The runner does not hold an npm
-# write token, so this workflow only BUILDS the Android arm64 payload and
-# uploads the npm tarball as an artifact. Publishing is done with a local
-# ~/.npmrc.
+# GitHub Actions builds the Android ARM64 payload and publishes a public,
+# rolling GitHub Release asset. Termux users download that verified asset and
+# do not need Rust, the Android NDK, or a local source compilation.
 name: termux-npm-build-publish
 
 on:
@@ -18,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
-      contents: read
+      contents: write
     env:
       ANDROID_NDK_VERSION: "28.2.13676358"
       # Keep the release tarball under the
@@ -129,6 +127,35 @@ jobs:
             ${{ env.PACKAGE_SHA256_FILE }}
           if-no-files-found: error
 
-      # npm publish intentionally removed: publishing is performed locally with
-      # ~/.npmrc on the maintainer's release host, never from CI. The Android
-      # arm64 npm tarball is available as the uploaded build artifact above.
+      - name: Prepare stable Termux runtime assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "${PACKAGE_TGZ}" codex-termux-runtime.tgz
+          sha512sum codex-termux-runtime.tgz > codex-termux-runtime.tgz.sha512
+          ls -lh codex-termux-runtime.tgz codex-termux-runtime.tgz.sha512
+
+      - name: Publish rolling Termux release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: termux-latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes=$'Automated Android ARM64 Termux runtime built from commit '"${GITHUB_SHA}"$'.\n\nThis rolling release is consumed by start.sh. The runtime is checksum-verified before extraction.'
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --title "Codex Termux — latest Android ARM64 runtime" \
+              --notes "${notes}"
+            gh release upload "${RELEASE_TAG}" \
+              codex-termux-runtime.tgz \
+              codex-termux-runtime.tgz.sha512 \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              codex-termux-runtime.tgz \
+              codex-termux-runtime.tgz.sha512 \
+              --title "Codex Termux — latest Android ARM64 runtime" \
+              --notes "${notes}" \
+              --prerelease
+          fi
