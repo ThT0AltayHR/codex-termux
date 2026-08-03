@@ -1,1 +1,2 @@
 - [Provider compatibility](provider-compatibility.md) — this Codex version routes configured providers through the Responses API; avoid hardcoded Chat Completions-only providers.
+- [Android runtime release](android-runtime-release.md) — Termux consumes the checksum-verified rolling GitHub Release; CI patch checks must match its publishing contract.
