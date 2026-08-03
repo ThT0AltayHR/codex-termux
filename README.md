@@ -109,7 +109,7 @@ hale getirmektir.
 
 ```text
 clone → ./start.sh → login → Codex TUI
-                         ├─ /help
+                         ├─ codex help
                          ├─ /api
                          ├─ /model
                          └─ /status
@@ -119,11 +119,48 @@ clone → ./start.sh → login → Codex TUI
 
 ### Yöntem A — Depoyu klonla ve başlat
 
+Kurulumu **home dizininden** başlat. Böylece depo `~/codex-termux`
+altına yalnızca bir kez oluşturulur:
+
 ```bash
-git clone https://github.com/ThT0AltayHR/codex-termux.git
-cd codex-termux
+cd ~
+git clone https://github.com/ThT0AltayHR/codex-termux.git "$HOME/codex-termux"
+cd "$HOME/codex-termux"
 chmod +x start.sh
 bash ./start.sh
+```
+
+### Zaten kuruluysa tekrar clone yapma
+
+Terminal satırında `~/codex-termux` görüyorsan doğrudan şunu kullan:
+
+```bash
+cd ~/codex-termux
+git pull --ff-only origin main
+bash ./start.sh
+```
+
+`git clone` komutunu bu klasörün içindeyken tekrar çalıştırma. Aksi hâlde
+`~/codex-termux/codex-termux` şeklinde iç içe ikinci bir depo oluşur.
+
+### `~/codex-termux/codex-termux` oluştuysa düzeltme
+
+Bu işlem mevcut iç içe depoyu silmez; önce yedek adını korur:
+
+```bash
+cd ~
+mv codex-termux codex-termux-backup
+mv codex-termux-backup/codex-termux codex-termux
+cd ~/codex-termux
+git pull --ff-only origin main
+chmod +x start.sh
+bash ./start.sh
+```
+
+Codex doğru açıldıktan sonra eski boş dış klasörü kaldırabilirsin:
+
+```bash
+rm -rf ~/codex-termux-backup
 ```
 
 İlk çalıştırmada `start.sh`:
