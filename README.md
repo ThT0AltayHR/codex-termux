@@ -682,7 +682,7 @@ kanala bağlanacaktır.
 
 ### 14 — Widget: sürüm etiketi
 
-`v0.146.0` &nbsp; `Android 10+` &nbsp; `API 29 target` &nbsp; `ARM64` &nbsp; `Termux`
+`v0.146.0` &nbsp; `Android 10+ / API 29+` &nbsp; `ARM64` &nbsp; `Termux`
 
 ### 15 — Widget: offline-safe açıklama
 
